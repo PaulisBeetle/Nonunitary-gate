@@ -7,20 +7,17 @@ using Statistics
 rng = Random.GLOBAL_RNG
 include("non-unitary.jl")
 
-function testfidelity(k::Int,ϵ)
-    Nt = 100000
-    Σ = Diagonal(Complex.(rand(4)))
+function testfidelity(Σ,reg2,k::Int,ϵ)
+    Nt = 20000
     aΣ = [sin(ϵ*Σ) cos(ϵ*Σ); -cos(ϵ*Σ) sin(ϵ*Σ)]
     mas = matblock(aΣ)
     ms = matblock(Σ)
-    reg2 = rand_state(2)
     regt = copy(reg2)
     reg = join(zero_state(1),reg2)
     for i in k
         regt |> ms |> normalize!
     end
     m = Measure(3,locs=(3,))
-    p30 = put(3,(3=>ConstGate.P0))
     num = 0
     measuretimes = 0
     for i in 1:Nt
@@ -141,11 +138,11 @@ function measurepsilon(nummat::Int,k::Int,nsample::Int,rangepsilon)
     savefig("D://Nonunitary//constkaveragefidelity")
 end
 
-function plotfidelity(nummat::Int,numk::Int,ϵ)
+function plotfidelity(Σ,reg2,nummat::Int,numk::Int,ϵ)
     f = Float64[]
     m = Int[]
     count = zeros(5)
-    results = [testfidelity(numk,ϵ) for i in 1:nummat]
+    results = [testfidelity(Σ,reg2,numk,ϵ) for i in 1:nummat]
     for i in results
         if i[2] != false
             push!(f,i[2])
@@ -153,37 +150,40 @@ function plotfidelity(nummat::Int,numk::Int,ϵ)
         end
     end
     scatter(1:length(f),f,title="Distribution of fidelity after 50 samples (success times :$(length(f)))")
-    savefig("D://Nonunitary//fidelityscatter")
+    savefig("D://Nonunitary//fidelityscatter_$numk")
     scatter(1:length(m),m,title="Distribution of measuretimes after 50 samples (success times :$(length(m)))")
-    savefig("D://Nonunitary//measuretimescatter")
+    savefig("D://Nonunitary//measuretimescatter_$numk")
     histogram(f,bins=0.0:0.05:1.0)
     title!("Distribution of fidelity after 50 samples (success times :$(length(f)))")
-    savefig("D://Nonunitary//fidelityhis")
+    savefig("D://Nonunitary//fidelityhis_$numk")
     #=histogram(m,bins=numk:50:)=#
 end
-
-plotfidelity(50,4,doublepsilon(0.1))
 
 function doublepsilon(ϵ::Float64)
     return sqrt(1-sqrt(1-ϵ^2))
 end
 
-function testpoly(nsample::Int,lengthmax::Int,ϵ::Float64)
+function testpoly(Σ,reg,nsample::Int,lengthmax::Int)
     f = Float64[]
     m = Int64[]
-    meas = Int64[]
+    meas = Float64[]
     fid = Float64[]
     for i in 1:lengthmax
-        results = [testfidelity(2^i,ϵ) for i in 1:nsample]
-        ϵ = doublepsilon(ϵ)
-        for i in results
-            if i[2]!=false
-                push!(f,i[2])
-                push!(m,i[1])
+        ϵ = 0.1/sqrt(i)
+        results = [testfidelity(Σ,reg,i,ϵ) for j in 1:nsample]
+        for r in results
+            if r[2]!=false
+                push!(f,r[2])
+                push!(m,r[1])
             end
         end
         push!(fid,mean(f))
+        push!(meas,mean(m))
     end
     fid,meas
 end
-testpoly(50,5,0.1)
+
+Σ = Diagonal(Complex.(rand(4)))
+reg = rand_state(2)
+
+testpoly(Σ,reg,50,10)
