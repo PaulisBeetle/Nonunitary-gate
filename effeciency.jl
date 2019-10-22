@@ -13,7 +13,7 @@ function testfidelity(Σ,reg2,k::Int,ϵ)
     ms = matblock(Σ)
     regt = copy(reg2)
     reg = join(zero_state(1),reg2)
-    for i in k
+    for i in 1:k
         regt |> ms |> normalize!
     end
     m = Measure(3,locs=(3,))
