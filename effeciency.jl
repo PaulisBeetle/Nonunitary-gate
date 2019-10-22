@@ -5,10 +5,9 @@ using Random
 using Statistics
 
 rng = Random.GLOBAL_RNG
-include("non-unitary.jl")
 
 function testfidelity(Σ,reg2,k::Int,ϵ)
-    Nt = 20000
+    Nt = 200*k/(ϵ^2)
     aΣ = [sin(ϵ*Σ) cos(ϵ*Σ); -cos(ϵ*Σ) sin(ϵ*Σ)]
     mas = matblock(aΣ)
     ms = matblock(Σ)
@@ -186,4 +185,4 @@ end
 Σ = Diagonal(Complex.(rand(4)))
 reg = rand_state(2)
 
-testpoly(Σ,reg,50,10)
+testpoly(Σ,reg,50,5)
