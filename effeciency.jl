@@ -3,17 +3,17 @@ using Plots
 using LinearAlgebra
 using Random
 using Statistics
-using QuantumInformation
+using HypergeometricFunctions
 
 rng = Random.GLOBAL_RNG
-II = [1 0;0 1]
+II = [1. 0;0 1.]
 @const_gate ZZ = mat(kron(Z,Z))
 
 function testfidelity(Σ,regn,k::Int,ϵ)
     nbit = Int(log(2,size(statevec(regn))[1]))+1
-    Nt = 200*k/(ϵ^2)
+    Nt = 5000*k/(ϵ^2)
     Σ = Complex.(Σ)
-    aΣ = Complex.([cos(ϵ*Σ) -sin(ϵ*Σ); sin(ϵ*Σ) cos(ϵ*Σ)])
+    aΣ = [cos(ϵ*Σ) -sin(ϵ*Σ); sin(ϵ*Σ) cos(ϵ*Σ)]
     mas = matblock(aΣ)
     ms = matblock(Σ)
     regt = copy(regn)
@@ -35,7 +35,7 @@ function testfidelity(Σ,regn,k::Int,ϵ)
             measuretimes += 1
         end
     end
-    f0 = (fidelity(reg,join(zero_state(1),regt)))[1]
+    f0 = (Yao.fidelity(reg,join(zero_state(1),regt)))[1]
     if num == k
         return measuretimes,f0
     else
@@ -43,13 +43,14 @@ function testfidelity(Σ,regn,k::Int,ϵ)
     end
 end
 
-function fidmes(Σ,reg,k::Int,ϵ::Float64)
+function fidmes(Σ,reg,k::Int,ϵ::Float64,minn,maxn)
     x = statevec(reg)
-    diff = (x'*Σ^(2k+4)*x)*(x'*Σ^(2k)*x)-(x'*Σ^(2k+2)*x)^2
-    A = (x'*Σ^(2k)*x)^2
+    x = BigFloat.(x)
+    diff = (x'*BigFloat.(Σ)^(2k+4)*x)*(x'*BigFloat.(Σ)^(2k)*x)-(x'*BigFloat.(Σ)^(2k+2)*x)^2
+    A = (x'*BigFloat.(Σ)^(2k)*x)^2
     #approx = [sqrt(abs(1-(n/2-k/3)^2*diff*ϵ^4/A)) for n in k:2000]
-    rstate = Σ^k*x./sqrt((x'*Σ^(2k)*x))
-    exact = [abs(rstate'*sin(ϵ*Σ)^(k)*cos(ϵ*Σ)^(n-k)*x/(sqrt(x'*sin(ϵ*Σ)^(2k)*cos(ϵ*Σ)^(2n-2k)*x)))  for n in k:2000]
+    rstate = BigFloat.(Σ)^k*x./sqrt((x'*BigFloat.(Σ)^(2k)*x))
+    exact = [abs(rstate'*sin(ϵ*BigFloat.(Σ))^(k)*cos(ϵ*BigFloat.(Σ))^(n-k)*x/(sqrt(x'*sin(ϵ*BigFloat.(Σ))^(2k)*cos(ϵ*BigFloat.(Σ))^(2n-2k)*x)))  for n in minn:maxn]
 end
 
 function plotfidelity(Σ,reg2,nummat::Int,numk::Int,ϵ)
@@ -66,24 +67,24 @@ function plotfidelity(Σ,reg2,nummat::Int,numk::Int,ϵ)
     savefig("D://Nonunitary//fidelityscatter_k$(numk)_eps$(ϵ)")
     scatter(1:length(m),m,title="Distribution of measuretimes after $(length(f)), eps=$ϵ")
     savefig("D://Nonunitary//measuretimescatter_k$(numk)_eps$ϵ")
-    histogram(f,bins=0.0:0.05:1.0)
+    histogram(f,bins=0.0:0.05:1.1)
     title!("Distribution of fidelity after $(length(f)) samples, eps=$ϵ")
     savefig("D://Nonunitary//fidelityhis_$(numk)_eps$ϵ")
-    histogram(m,bins=0:100:2000,title="Distribution of measure times after $(length(f)) samples, eps=$ϵ")
+    histogram(m,bins=0:100:12000,title="Distribution of measure times after $(length(f)) samples, eps=$ϵ")
     savefig("D://Nonunitary//measuretimeshis_$(numk)_eps$ϵ")
     scatter(results,title="fidelity-measuretimes, k=$numk, eps=$ϵ",xlabel="measuretimes",ylabel="fidelity")
-    plot!(numk:2000,fidmes(Σ,reg2,numk,ϵ))
+    plot!(numk:12000,fidmes(Σ,reg2,numk,ϵ,numk,12000))
     savefig("D://Nonunitary//fidmes_k=$(numk)_eps=$(ϵ)")
     f,m
     #=histogram(m,bins=numk:50:)=#
 end
 
 
-function exactprob(Σ::Diagonal,reg,k::Int,ϵ::Float64)
+function exactprob(Σ::Diagonal,reg,k::Int,ϵ::Float64,minn,n::Int)
     x = statevec(reg)
     p = Float64[]
-    for i in k:50000
-        push!(p,abs((binomial(BigInt(i-1),BigInt(k-1))*x'*sin(ϵ*Σ)^(2*k)*cos(ϵ*Σ)^(2*i-2*k)*x)))
+    for i in minn:n
+        push!(p,abs((binomial(BigInt(i-1),BigInt(k-1))*x'*sin(BigFloat.(ϵ*Σ))^(2*k)*cos(BigFloat.(ϵ*Σ))^(2*i-2*k)*x)))
     end
     p
 end
@@ -95,74 +96,17 @@ end
 
 function exactfid(Σ::Diagonal,reg,n::Int,k::Int,ϵ)
     x = statevec(reg)
-    num = (x'*Σ^k*sin(ϵ*Σ)^k*cos(ϵ*Σ)^(n-k)*x)^2
-    den = (x'*Σ^(2k)*x)*(x'*sin(ϵ*Σ)^(2k)*cos(ϵ*Σ)^(2n-2k)*x)
-    return abs(num/den)
+    num = (x'*BigFloat.(Σ)^k*sin(ϵ*BigFloat.(Σ))^k*cos(ϵ*BigFloat.(Σ))^(n-k)*x)^2
+    den = (x'*BigFloat.(Σ)^(2k)*x)*(x'*sin(ϵ*BigFloat.(Σ))^(2k)*cos(ϵ*BigFloat.(Σ))^(2n-2k)*x)
+    return sqrt(abs(num/den))
 end
 
-function testfidelity(Σ12,Σ23,reg3,k::Int,ϵ)
-    Nt = 50000
-    Σ = Diagonal(diag(kron(Σ12,II)*kron(II,Σ23)))
-    aΣ = Complex.([cos(ϵ*Σ) -sin(ϵ*Σ);sin(ϵ*Σ) cos(ϵ*Σ)])
-    mas = matblock(aΣ)
-    ms = matblock(Σ)
-    regt = copy(reg3)
-    reg = join(zero_state(1),reg3)
-    m = Measure(4,locs=(4,),collapseto=bit"0")
-    for i in 1:k
-        regt |> ms |> normalize!
-    end
-    num = 0
-    measuretimes = 0
-    for i in 1:Nt
-        if num == k
-            break
-        else
-            reg |> mas |> m
-            if m.results[1] == 1
-                num += 1
-            end
-            measuretimes += 1
-        end
-    end
-    f0 = (fidelity(reg,join(zero_state(1),regt)))[1]
-    if num == k
-        return measuretimes, f0
-    else
-        return measuretimes, false
-    end
-end
-
-function plotfidelity(Σ1,Σ2,reg3,nummat::Int,numk::Int,ϵ)
-    f = Float64[]
-    m = Int[]
-    results = [testfidelity(Σ1,Σ2,reg3,numk,ϵ) for in in 1:nummat]
-    for i in results
-        if i[2] != false
-            push!(f,i[2])
-            push!(m,i[1])
-        end
-    end
-    scatter(1:length(f),f,title="Distribution of fidelity after $(length(f)) samples, eps=$ϵ")
-    savefig("D://Nonunitary//fidelityscatter_k$(numk)_eps$(ϵ)")
-    scatter(1:length(m),m,title="Distribution of measuretimes after $(length(f)), eps=$ϵ")
-    savefig("D://Nonunitary//measuretimescatter_k$(numk)_eps$ϵ")
-    histogram(f,bins=0.0:0.05:1.0)
-    title!("Distribution of fidelity after $(length(f)) samples, eps=$ϵ")
-    savefig("D://Nonunitary//fidelityhis_$(numk)_eps$ϵ")
-    histogram(m,bins=0:100:2000,title="Distribution of measure times after $(length(f)) samples, eps=$ϵ")
-    savefig("D://Nonunitary//measuretimeshis_$(numk)_eps$ϵ")
-    scatter(results,title="fidelity-measuretimes, k=$numk, eps=$ϵ",xlabel="measuretimes",ylabel="fidelity")
-    savefig("D://Nonunitary//fidmes_k=$(numk)_eps=$(ϵ)")
-    f,m
-end
-
-function threshold(percent::Float64,Σ,reg,k::Int,ϵ,maxn)
+function threshold(percent::Float64,Σ,reg,k::Int,ϵ,minn,maxn)
     function f(x)
         return exactfid(Σ,reg,x,k,ϵ)-percent
     end
     maxifid = exactfid(Σ,reg,k,k,ϵ)
-    for i in k:maxn
+    for i in minn:maxn
         if f(i) < 0
             return i-1
         end
@@ -225,6 +169,7 @@ function assume(σ1,σ2,σ3,σ4,k)
     end
     plot(start:finish,[vec(t1),vec(t2),vec(t3)],label=["t1","t2","t3"])
 end
+
 
 function p1(k,ϵ,nbit)
     p1 = Float64[]
@@ -296,25 +241,13 @@ function irotZZ(theta)
     Diagonal([exp(-theta/2),exp(theta/2),exp(theta/2),exp(-theta/2)])
 end
 
-ϵ = 0.5
-Σ = sortsigma(irotZZ(5),true)
-reg = uniform_state(2)
-k = 1
-t = threshold(0.95*0.95,Σ,reg,k,ϵ,2000)
-assumemeasure(0.95*0.95,ϵ*1.,ϵ*0.7,k)
-plotfidelity(Σ,reg,300,k,ϵ)
-sum(exactprob(Σ,reg,k,ϵ)[1:t-k+1])
-delta = 0.7:0.01:1.0
-plot(delta,plotsigma(delta,0.95*0.95,2,k,ϵ))
-assume(1,0.9,k,80,90)
 
-function meanpro(nbit,k,ϵ)
-    Σ = Diagonal(rand(2^nbit))
+function meanpro(nbit,Σ,k,ϵ)
     ssum = Float64[]
-    for i in 1:50
+    for i in 1:100
         reg = rand_state(nbit)
         x = statevec(reg)
-        push!(ssum,sum(exactprob(Σ,reg,k,ϵ)[1:threshold(0.9,Σ,reg,k,ϵ,50000)-k+1]))
+        push!(ssum,sum(exactprob(Σ,reg,k,ϵ,threshold(0.9,Σ,reg,k,ϵ,100000))))
     end
     mean(ssum)
 end
@@ -327,4 +260,115 @@ function testmeanpro(nbit)
     ssum
 end
 
-testmeanpro(3)
+function exactprobconstn(Σ::Diagonal,reg,n::Int,ϵ::Float64)
+    x = statevec(reg)
+    p = Float64[]
+    for i in 1:n
+        push!(p,abs(binomial(BigInt(n-1),BigInt(i-1))*x'*sin(ϵ*Σ)^(2i)*cos(ϵ*Σ)^(2n-2i)*x))
+    end
+    p
+end
+
+function contrast(Σ,reg,k,ϵ,maxn)
+    p = exactprob(Σ,reg,k,ϵ,maxn)
+    f = fidmes(Σ,reg,k,ϵ,maxn)
+    p = p./maximum(p)
+    plot(k:maxn,[vec(p),vec(f)],label=["prob","fid-mes"])
+    savefig("D://Nonunitary//contrast_$(k)_$(ϵ)")
+    return
+end
+
+function nandk(Σ,reg,ϵ,maxk)
+    na = Int[]
+    for k =1:maxk
+        push!(na,threshold(0.95*0.95,Σ,reg,k,ϵ,1000000))
+    end
+    na
+end
+
+function coeff(σ,ϵ,η)
+    return log(tan(ϵ)/tan(ϵ*σ))/log(cos(ϵ*σ)/cos(ϵ)),-1/(2*log(cos(ϵ*σ)/cos(ϵ)))*log(η/(1-η))
+end
+
+function decompose(Σ,reg,m,k,ϵ)
+    nm = m^3
+    Σ = Σ./maximum(Σ)
+    mΣ = Σ.^(1/nm)
+    plotfidelity(mΣ,reg,400,nm*k,ϵ)
+end
+
+function changeps(Σ,k)
+    p = Float64[]
+    eps = 0.001:0.001:0.01
+    for i in eps
+        t = threshold(0.95*0.95,Σ,uniform_state(2),k,i,10000000)
+        push!(p,sum(exactprob(Σ,uniform_state(2),k,i,50000000)[k:t-k+1]))
+    end
+    p
+end
+
+function embedproj(nphy,ϵ)
+    Nsample = 200
+    Nmeasure = 4000
+    Σ = Diagonal(Complex.([1,0]))
+    u = matblock([cos(ϵ*Σ) -sin(ϵ*Σ); sin(ϵ*Σ) cos(ϵ*Σ)])
+    m = Measure(nphy+1,locs=(nphy+1,),collapseto=bit"0")
+    marray = Int[]
+    for i = 1:Nsample
+        reg = join(zero_state(1),rand_state(nphy))
+        c = chain(nphy+1,put(nphy+1,(nphy,nphy+1)=>u),m)
+        for j = 1:Nmeasure
+            reg |> c
+            if m.results[1] == 1
+                push!(marray,j)
+                break
+            end
+        end
+    end
+    marray
+end
+
+function estimatemn(Σ,m,ϵ)
+    σ = minimum(diag(Σ))
+    n = (m-1)/(1-cos(ϵ*σ^(1/m))^2)
+end
+
+
+function decompexactfid(Σ,reg,m,n,ϵ)
+    x = statevec(reg)
+    num = (x'*Σ*sin(BigFloat.(ϵ*Σ.^(1/m)))^m*cos(BigFloat.(ϵ*Σ.^(1/m)))^(n-m)*x)^2
+    dem = (x'*Σ^2*x)*(x'*sin(BigFloat.(ϵ*Σ.^(1/m)))^(2m)*cos(BigFloat.(ϵ*Σ.^(1/m)))^(2n-2m)*x)
+    return sqrt(abs(num/dem))
+end
+
+function decompmaxn(Σ,m,ϵ)
+    σ = minimum(diag(Σ))
+    return round((m+1)/(1-cos(ϵ*BigFloat(σ^(1/m)))^2))
+end
+
+function decomplot(Σ,reg,m,ϵ,minn,maxn)
+    prob = exactprob(Σ.^(1/m),reg,m,ϵ,minn,maxn)
+    plot(minn:maxn,prob./maximum(prob))
+    plot!(minn:maxn,fidmes(Σ.^(1/m),reg,m,ϵ,minn,maxn))
+    savefig("D://Nonunitary//decomplot_$(m)_$ϵ")
+end
+
+
+
+part = Float64[]
+mbar = Float64[]
+for nbit = 5:1:25
+     m = embedproj(nbit,0.4)
+    push!(part,size(m,1)/200)
+    push!(mbar,mean(m))
+end
+
+Σ = Diagonal([exp(-1/4),1,1,exp(-1/4)])
+m = 100
+ϵ = π/2
+decomplot(Σ.^(1/m),uniform_state(2),m,ϵ,m,2000)
+plot(250:1000,exactprob(Σ.^(1/m),uniform_state(2),m,ϵ,250,1000)./maximum(exactprob(Σ.^(1/m),uniform_state(2),m,ϵ,250,500)))
+plot!(m:2000,fidmes(Σ.^(1/m),uniform_state(2),m,ϵ,m,2000))
+estimatemn(Σ.^(1/m),m,ϵ)
+exactfid(Σ.^(1/m),uniform_state(2),m,m,ϵ)
+plotfidelity(Σ.^(1/m),uniform_state(2),200,2*m,ϵ)
